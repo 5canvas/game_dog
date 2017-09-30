@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="authoring-tool" content="Adobe_Animate_CC">
+<title>assets</title>
+<!-- write your code here -->
+
+<style>
+    @font-face{
+    font-family: GoodDog;
+    src: url(fonts/GoodDog.otf);
+    }
+</style>
+ 
+<script src="https://code.createjs.com/createjs-2015.11.26.min.js"></script>
+<script src="assets.js?1503945625391"></script>
+<script>
+
+var canvas, stage;
+var sky, background1, background2;
+
+var menu;
+var player;
+var txt_score;
+var over;
+    
+var containerPlayer;
+var containerObjects;
+
+var isStarted = false;
+var oldtime;
+var mouseX, mouseY;
+var enemies = new Array();
+var items = new Array();
+    
+var tweenGame = {};
+
+var MAX_VX = -160;
+var currentVx = MAX_VX;
+
+var MAX_ENEMY_TIME = 5000;
+var currentEnemyTime = MAX_ENEMY_TIME;
+    
+var debugCollision = true;
+    
+var score = 0;
+    
+var poolEnemies = 		new Array();
+var poolAppleRed = 		new Array();
+var poolAppleGreen = 	new Array();
+var poolChiken = 		new Array();
+
+
+function init() {
+	canvas = document.getElementById("canvas");
+	stage = new createjs.Stage(canvas);
+	handleComplete();
+}
+
+function handleComplete() {
+	sky = new lib.Sky();
+    sky.cache(0,0,1280,1280);
+	stage.addChild(sky);
+	
+	background1 = new lib.BackgroundParallax1();
+    background1.cache(0,0,1280*2,1280);
+	background2 = new lib.BackgroundParallax2();
+    background2.cache(0,0,1280*2,1280);
+	stage.addChild(background2);
+	stage.addChild(background1);
+	
+	menu = new lib.Menu();
+	menu.btn_play.on("click", onPlayClick);
+	stage.addChild(menu);
+	
+    containerObjects = new createjs.Container();
+    stage.addChild(containerObjects);
+    
+    containerPlayer = new createjs.Container();
+    stage.addChild(containerPlayer);
+    
+	player = new lib.mc_cuy();
+	player.visible = false;
+	containerPlayer.addChild(player);
+    
+    player.isDie = false;
+    
+    setCollision(player, -30, -30, 60, 60);
+	
+	stage.update();
+	createjs.Touch.enable(stage);
+	stage.enableMouseOver();	
+	
+	stage.on("stagemousemove", onStageMouseMove);
+	
+	//enterFrame
+	createjs.Ticker.setFPS(lib.properties.fps);
+	createjs.Ticker.addEventListener("tick", update);
+	
+	oldtime = createjs.Ticker.getTime();
+    
+    txt_score = new createjs.Text("0", "80px GoodDog", "#ff7700");
+    txt_score.x = 20;
+    txt_score.visible = false;
+    stage.addChild(txt_score);
+    
+    over = new lib.Over();
+    over.btn_play.on("click", onResetGame);
+    over.visible = false;
+    stage.addChild(over);
+    
+    var k;
+    for (k=0; k<6; k++)
+    {
+        var enemy = new lib.mc_enemy();
+        poolEnemies.push(enemy);
+        
+    }
+    
+    var item;
+    for (k=0; k<10; k++)
+    {
+        item = new lib.mc_apple();
+        poolAppleRed.push(item);
+        item.cache(-50,-50,100,100);
+        
+        item = new lib.mc_apple_green();
+        poolAppleGreen.push(item);
+        item.cache(-50,-50,100,100);
+        
+        item = new lib.mc_chicken();
+        poolChiken.push(item);
+        item.cache(-50,-50,100,100);
+        
+    }
+    
+    
+}
+    
+function onResetGame() {
+    player.gotoAndPlay("idle");
+    player.isDie = false;
+
+	createjs.Tween.get(tweenGame)
+		.wait(2000)
+		.call(onCreateEnemy);
+    
+    createjs.Tween.get(tweenGame)
+		.wait(3000)
+		.call(onCreateItem);
+    
+    score = 0;
+    txt_score.text = score + "";
+    
+    isStarted = true;
+    
+    //
+    
+    var k;
+    for (k=0; k < enemies.length; k++)
+    {
+        var enemy = enemies[k];
+        containerObjects.removeChild(enemy);
+        enemies.splice(k,1);
+        k--;
+        enemy.gotoAndPlay("idle");
+        poolEnemies.push(enemy);
+    }
+    
+    
+    currentVx = MAX_VX;
+    currentEnemyTime = MAX_ENEMY_TIME;
+    
+    for (k=0; k < items.length; k++)
+    {
+        var item = items[k];
+        containerObjects.removeChild(item);
+        items.splice(k,1);
+        k--;
+    }
+    
+    over.visible = false;
+    
+}
+
+function onStageMouseMove(evt) {
+	mouseX = evt.stageX;
+	mouseY = evt.stageY;
+}
+
+function onPlayClick() {
+	menu.visible = false;
+	isStarted = true;
+	
+	player.visible = true;
+    txt_score.visible = true;
+	
+	//создаем врага
+	createjs.Tween.get(tweenGame)
+		.wait(2000)
+		.call(onCreateEnemy);
+    
+    createjs.Tween.get(tweenGame)
+		.wait(3000)
+		.call(onCreateItem);
+    
+}
+    
+function onCreateItem() {
+    var type = randomIntInc(0,2);
+    
+    var item;
+    
+    if (type == 0)
+    {
+        item = poolAppleRed.pop();
+        item.type = "red";
+        
+    } else if (type == 1)
+        {
+            item = poolAppleGreen.pop();
+            item.type = "green";
+            
+        } else {
+            item = poolChiken.pop();
+            item.type = "chicken";
+        }
+    item.cache(-50,-50,100,100);
+    item.x = 980;
+    item.y = random(30, 620);
+    item.vx = -250;
+    item.vy = 0;
+    items.push(item);
+    containerObjects.addChild(item);
+    item.toRemove = false;
+    setCollision(item, -25, -25, 50, 50);
+    
+    createjs.Tween.get(tweenGame)
+		.wait(2000)
+		.call(onCreateItem);
+}
+     
+function onCreateEnemy() {
+	var enemy = poolEnemies.pop();
+	enemy.x = 980;
+	enemy.y = random (30, 620);
+	enemy.vx = currentVx;
+	enemy.vy = 0;
+	enemies.push(enemy);
+	containerObjects.addChild(enemy);
+    
+    setCollision(enemy, -30, -30, 60, 60);
+	
+	createjs.Tween.get(tweenGame)
+		.wait(currentEnemyTime)
+		.call(onCreateEnemy);
+	
+	currentVx -= 60;
+	currentVx = Math.max(-350, currentVx);
+	
+	currentEnemyTime -= 700;
+	currentEnemyTime = Math.max(1000, currentEnemyTime);
+
+}
+
+//0.033 sec
+function update(evt) {
+	var delta = (createjs.Ticker.getTime() - oldtime) / 1000;
+	oldtime = createjs.Ticker.getTime();
+	
+	if (isStarted)
+	{
+		background1.x -= 150 * delta;
+		
+		if (background1.x <= -1280)
+		{
+			background1.x = background1.x + 1280;
+		}
+		
+		background2.x -= 50 * delta;
+		
+		if (background2.x <= -1280)
+		{
+			background2.x = background2.x + 1280;
+		}
+		
+		player.x += (mouseX - player.x) * 3 * delta;
+		player.y += (mouseY - player.y) * 3 * delta;
+		
+		// move enemies
+		var k;
+		var bounds;
+        
+		for (k=0; k < enemies.length; k++)
+		{
+			var enemy = enemies[k];
+			enemy.x +=enemy.vx * delta;
+			enemy.y +=enemy.vy * delta;
+            
+            bounds = player.getTransformedBounds();
+            
+            if (bounds.intersects(enemy.getTransformedBounds()))
+            {
+                if (!player.isDie)
+                {
+                    player.gotoAndPlay("dead");
+                    player.isDie = true;
+                    isStarted = false;
+                    
+                    onStopAllEnemies();
+                    
+                    createjs.Tween.removeTweens(tweenGame);
+                    
+                	createjs.Tween.get(tweenGame)
+		              .wait(500)
+		              .call(onShowOverScreen);
+                }
+            }
+			
+			if (enemy.x <= -50)
+			{
+				enemies.splice(k, 1);
+				containerObjects.removeChild(enemy);
+				k--;
+                enemy.gotoAndPlay("idle");
+                poolEnemies.push(enemy);
+			}
+		}
+        
+        // move items
+		var k;
+		
+		for (k=0; k < items.length; k++)
+		{
+			var item = items[k];
+			item.x +=item.vx * delta;
+			item.y +=item.vy * delta;
+			            
+            bounds = player.getTransformedBounds();
+            
+            if (bounds.intersects(item.getTransformedBounds()))
+            {
+                score ++;
+                txt_score.text = score + "";
+                item.toRemove = true;
+                
+            }
+            
+			if (item.x <= -50 || item.toRemove)
+			{
+				items.splice(k, 1);
+				containerObjects.removeChild(item);
+				k--;
+                
+                if (item.type == "red")
+                {
+                    poolAppleRed.push(item);
+                } else if (item.type == "green") {
+                    poolAppleGreen.push(item);
+                } else {
+                    poolChiken.push(item);
+                }
+			}
+		}
+	}   
+	
+	stage.update();
+}
+
+function onStopAllEnemies(){
+    for (var k=0; k < enemies.length; k++)
+    {
+        var enemy = enemies[k];
+        enemy.stop();
+    }
+}
+    
+function onShowOverScreen() {
+    over.visible = true;
+}
+
+function setCollision(_container, _x, _y, _w, _h) {
+    if (debugCollision)
+    {
+        var g = new createjs.Graphics().beginFill("#66FF00").drawRect(_x,_y,_w,_h);
+        
+        var shape = new createjs.Shape(g);
+        shape.alpha = 0;
+        _container.addChild(shape);
+    }
+    
+    _container.setBounds(_x,_y,_w,_h);
+}
+
+function randomIntInc(low, high) {
+    return Math.floor(Math.random() * (high - low + 1) ) + low;
+}
+
+function random (low, high) {
+	return Math.random() * (high - low) + low;
+}
+
+</script>
+<!-- write your code here -->
+</head>
+<body onload="init();" style="margin:0px;">
+	<div id="animation_container" style="background-color:rgba(0, 255, 0, 1.00); width:960px; height:640px">
+		<canvas id="canvas" width="960" height="640" style="position: absolute; display: block; background-color:rgba(0, 255, 0, 1.00);"></canvas>
+		<div id="dom_overlay_container" style="pointer-events:none; overflow:hidden; width:960px; height:640px; position: absolute; left: 0px; top: 0px; display: block;">
+		</div>
+	</div>
+</body>
+</html>
